@@ -32,5 +32,14 @@ conn:on("complete", function()
     print("sum result from server:", arg.result )
     end )
   end )
+
+-- in the game loop
+local th = MOAIThread.new()
+th:run( function()
+  while true do
+    conn:poll()
+    conn:pollMessage( function() return true end )
+  end
+  end)
 </pre>  
 
