@@ -4,7 +4,7 @@ lua-mprpc is a small RPC stub for both [lua-msgpack](https://github.com/kengonak
 
 It provides some simple RPC syntax similar to Socket.io .
 
-Usable for luvit and lua and MoaiSDK environment.
+Usable under luvit and MoaiSDK environment.
 
 
 Adder server/client for luvit
@@ -26,9 +26,11 @@ rpc:createServer( "0.0.0.0", 8080, function(cli)    print("new connection." )
 and client is
 <pre>
 local conn = rpc:connect( ip_address, 8080 )
--- call and get the result in callback function in the last argument
-conn:emit( "sum", { tosum = { 1,5,9,101,48,50,10,12 } }, function(arg) 
-  print("sum result from server:", arg.result )
+conn:on("complete", function()
+  -- call and get the result in callback function in the last argument
+  conn:emit( "sum", { tosum = { 1,5,9,101,48,50,10,12 } }, function(arg)
+    print("sum result from server:", arg.result )
+    end )
   end )
 </pre>  
 
