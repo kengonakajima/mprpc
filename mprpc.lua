@@ -109,6 +109,7 @@ function mprpc_init_conn(conn)
       local payloadlen = res
       local bufleft = ( #conn.recvbuf - offset + 1 ) - nread
 
+      
 --      print("mprpc: payload len:", payloadlen, "nread:", nread, "bufleft:",bufleft )
 
       
@@ -119,12 +120,12 @@ function mprpc_init_conn(conn)
 
       offset = offset + nread
       local toread = string.sub(conn.recvbuf,offset,offset+payloadlen)  -- should never throws exception
-
+      
       nread,res = conn.rpc.mp.unpack(toread)            
 
-      if type(res) ~= "table" or res[1] ~= 1 or type(res[2]) ~= "string" or type(res[3]) ~= "table" then 
-        self:log("rpc format error. offset:", offset, "res:", res )
-        break
+      if type(res) ~= "table" or res[1] ~= 1 or type(res[2]) ~= "string" or type(res[3]) ~= "table" then
+        self:log("rpc format error. offset:", offset, "res:", res, "data:", strdump(toread) )
+        return false
       else
         local meth = res[2]
         local arg = res[3]
@@ -157,7 +158,8 @@ function mprpc_init_conn(conn)
     end
     if offset > 1 then
       self.recvbuf = string.sub( self.recvbuf, offset)
-    end      
+    end
+    return true
   end
 end
 
