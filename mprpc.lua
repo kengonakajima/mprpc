@@ -16,6 +16,40 @@ local strdump = function(s)
   return out
 end
 
+-- copied from penlight. 
+-- true if identical
+function deepcompare(t1,t2,ignore_mt,eps)
+    local ty1 = type(t1)
+    local ty2 = type(t2)
+    if ty1 ~= ty2 then
+      return false
+    end    
+    -- non-table types can be directly compared
+    if ty1 ~= 'table' then
+        if ty1 == 'number' and eps then
+          return abs(t1-t2) < eps
+        end
+        return t1 == t2
+    end
+    -- as well as tables which have the metamethod __eq
+    local mt = getmetatable(t1)
+    if not ignore_mt and mt and mt.__eq then
+      return t1 == t2
+    end
+    for k1,v1 in pairs(t1) do
+        local v2 = t2[k1]
+        if v2 == nil or not deepcompare(v1,v2,ignore_mt,eps) then
+          return false
+        end
+    end
+    for k2,v2 in pairs(t2) do
+        local v1 = t1[k2]
+        if v1 == nil or not deepcompare(v1,v2,ignore_mt,eps) then
+          return false
+        end
+    end
+    return true
+end
 
 
 function mprpc_init_conn(conn)
@@ -23,6 +57,8 @@ function mprpc_init_conn(conn)
   conn.super_emit = conn.emit
   conn.doLog = false
 
+  conn.packetID = 0
+  
   conn.roundTripFuncID = 1
   
   conn.recvbuf = ""
@@ -30,6 +66,7 @@ function mprpc_init_conn(conn)
     if self.doLog then print(...) end
   end
 
+  conn.doSelfTest = false
 
   conn.packetID = 0
   conn.waitfuncs = {}
@@ -71,10 +108,19 @@ function mprpc_init_conn(conn)
     local packed = self.rpc.mp.pack(t)
     --                  local ahoet = MOAISim.getDeviceTime()
     --                  print("packtime:", (ahoet-ahost) )
+
+    if self.doSelfTest then
+      local nread,resulttbl = self.rpc.mp.unpack(packed)
+      local isok = deepcompare(resulttbl,t)
+      assert(isok, "deepcompare")
+    end
+    
     local payloadlen = #packed
     local lenpacked = self.rpc.mp.pack(payloadlen) 
     local tosend = lenpacked .. packed
---    print("sending actual data bytes:", #tosend, "payloadlen:", payloadlen )
+
+    self.packetID = self.packetID + 1
+    print("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
     
     self:write( tosend, nil )
   end
