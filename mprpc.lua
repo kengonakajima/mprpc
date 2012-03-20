@@ -31,6 +31,7 @@ function mprpc_init_conn(conn)
   end
 
 
+  conn.packetID = 0
   conn.waitfuncs = {}
   
   conn.rpcfuncs = {}
@@ -81,7 +82,7 @@ function mprpc_init_conn(conn)
   conn:super_on("data", function (chunk)
       conn.lastAliveAt = os.time()
       conn.recvbuf = conn.recvbuf .. chunk
-      --                            print("data. chunklen:", string.len(chunk), " recvbuf:", string.len(conn.recvbuf), "alive:", conn.lastAliveAt )
+      print("data. chunklen:", string.len(chunk), " recvbuf:", string.len(conn.recvbuf), "alive:", conn.lastAliveAt )
       if conn.autoPollMessage then
         conn:pollMessage()
       end                            
@@ -109,8 +110,8 @@ function mprpc_init_conn(conn)
       local payloadlen = res
       local bufleft = ( #conn.recvbuf - offset + 1 ) - nread
 
-      
---      print("mprpc: payload len:", payloadlen, "nread:", nread, "bufleft:",bufleft )
+      self.packetID = self.packetID + 1
+      print("mprpc: offset:", offset, "payload len:", payloadlen, "envelopelen:", nread, "#recvbuf:", #conn.recvbuf, "bufleft:",bufleft, "packetID:", self.packetID )
 
       
       if bufleft < payloadlen then
