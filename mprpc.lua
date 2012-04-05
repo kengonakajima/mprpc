@@ -120,7 +120,7 @@ function mprpc_init_conn(conn)
     local tosend = lenpacked .. packed
 
     self.packetID = self.packetID + 1
-    print("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
+    self:log("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
     
     self:write( tosend, nil )
   end
@@ -128,7 +128,7 @@ function mprpc_init_conn(conn)
   conn:super_on("data", function (chunk)
       conn.lastAliveAt = os.time()
       conn.recvbuf = conn.recvbuf .. chunk
-      print("data. chunklen:", string.len(chunk), " recvbuf:", string.len(conn.recvbuf), "alive:", conn.lastAliveAt )
+      conn:log("data. chunklen:", string.len(chunk), " recvbuf:", string.len(conn.recvbuf), "alive:", conn.lastAliveAt )
       if conn.autoPollMessage then
         conn:pollMessage()
       end                            
@@ -157,7 +157,7 @@ function mprpc_init_conn(conn)
       local bufleft = ( #conn.recvbuf - offset + 1 ) - nread
 
       self.packetID = self.packetID + 1
-      print("mprpc: offset:", offset, "payload len:", payloadlen, "envelopelen:", nread, "#recvbuf:", #conn.recvbuf, "bufleft:",bufleft, "packetID:", self.packetID )
+      self:log("mprpc: offset:", offset, "payload len:", payloadlen, "envelopelen:", nread, "#recvbuf:", #conn.recvbuf, "bufleft:",bufleft, "packetID:", self.packetID )
 
       
       if bufleft < payloadlen then
