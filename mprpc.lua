@@ -161,7 +161,7 @@ function mprpc_init_conn(conn)
 
       
       if bufleft < payloadlen then
-        print("wantread!")
+        self:log("wantread!")
         break
       end
 
