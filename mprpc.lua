@@ -19,36 +19,40 @@ end
 -- copied from penlight. 
 -- true if identical
 function deepcompare(t1,t2,ignore_mt,eps)
-    local ty1 = type(t1)
-    local ty2 = type(t2)
-    if ty1 ~= ty2 then
+  local ty1 = type(t1)
+  local ty2 = type(t2)
+  if ty1 ~= ty2 then
+    return false
+  end    
+  -- non-table types can be directly compared
+  if ty1 ~= 'table' then
+    if ty1 == 'number' and eps then
+      return abs(t1-t2) < eps
+    end
+    return t1 == t2
+  end
+  -- as well as tables which have the metamethod __eq
+  local mt = getmetatable(t1)
+  if not ignore_mt and mt and mt.__eq then
+    return t1 == t2
+  end
+  for k1,v1 in pairs(t1) do
+    local v2 = t2[k1]
+    if v2 == nil or not deepcompare(v1,v2,ignore_mt,eps) then
       return false
-    end    
-    -- non-table types can be directly compared
-    if ty1 ~= 'table' then
-        if ty1 == 'number' and eps then
-          return abs(t1-t2) < eps
-        end
-        return t1 == t2
     end
-    -- as well as tables which have the metamethod __eq
-    local mt = getmetatable(t1)
-    if not ignore_mt and mt and mt.__eq then
-      return t1 == t2
+  end
+  for k2,v2 in pairs(t2) do
+    local v1 = t1[k2]
+    if v1 == nil or not deepcompare(v1,v2,ignore_mt,eps) then
+      return false
     end
-    for k1,v1 in pairs(t1) do
-        local v2 = t2[k1]
-        if v2 == nil or not deepcompare(v1,v2,ignore_mt,eps) then
-          return false
-        end
-    end
-    for k2,v2 in pairs(t2) do
-        local v1 = t1[k2]
-        if v1 == nil or not deepcompare(v1,v2,ignore_mt,eps) then
-          return false
-        end
-    end
-    return true
+  end
+  return true
+end
+
+-- need this for luvit SIGPIPE inf-loop bug workaround  
+function writecb()
 end
 
 
@@ -62,7 +66,7 @@ function mprpc_init_conn(conn)
   conn.roundTripFuncID = 1
   
   conn.recvbuf = ""
-  conn.log = function(self,...)
+  function conn:log(...)
     if self.doLog then print(...) end
   end
 
@@ -72,7 +76,7 @@ function mprpc_init_conn(conn)
   conn.waitfuncs = {}
   
   conn.rpcfuncs = {}
-  conn.on = function(self,evname,fn)
+  function conn:on(evname,fn)
     if evname == "data" then
       error("MP need data event!")
     elseif evname == "complete" or evname == "end" then
@@ -84,7 +88,7 @@ function mprpc_init_conn(conn)
     end
   end
   -- cb can be nil
-  conn.emit = function(self,meth,arg,cb)
+  function conn:emit(meth,arg,cb)
     if type(arg) ~= "table" then 
       return self:super_emit(meth,arg) -- fallback to super class' emit function
     end
@@ -122,7 +126,7 @@ function mprpc_init_conn(conn)
     self.packetID = self.packetID + 1
     self:log("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
     
-    self:write( tosend, nil )
+    self:write( tosend, writecb )
   end
 
   conn:super_on("data", function (chunk)
