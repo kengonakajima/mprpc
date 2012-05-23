@@ -58,7 +58,11 @@ end
 
 function mprpc_init_conn(conn)
   conn.super_on = conn.on -- replace superclass "on" func..
-  conn.super_emit = conn.emit
+
+  if conn._handle then
+    conn.hasHandle = true
+  end
+    
   conn.doLog = false
 
   conn.packetID = 0
@@ -79,7 +83,7 @@ function mprpc_init_conn(conn)
   function conn:on(evname,fn)
     if evname == "data" then
       error("MP need data event!")
-    elseif evname == "complete" or evname == "end" then
+    elseif evname == "complete" or evname == "end" or evname == "error" then
       self:super_on(evname,fn)
       self:log("added default callback:", evname)
     else -- rpcs
@@ -88,9 +92,14 @@ function mprpc_init_conn(conn)
     end
   end
   -- cb can be nil
-  function conn:emit(meth,arg,cb)
+  function conn:call(meth,arg,cb)
+    if self.hasHandle and not self._handle then
+      self:log("no handle")
+      return
+    end
+      
     if type(arg) ~= "table" then 
-      return self:super_emit(meth,arg) -- fallback to super class' emit function
+      return self:emit(meth,arg) -- fallback to super class' emit function
     end
     if type(meth) ~= "string" then error("method name required") end
     
@@ -106,7 +115,7 @@ function mprpc_init_conn(conn)
       self.last_call_id = nil
     end
 
---    print("emit meth:", meth )
+--    print("call meth:", meth )
     -- number, table, number, table, ..... number=length of the following packed table data.
     --                  local ahost = MOAISim.getDeviceTime()
     local packed = self.rpc.mp.pack(t)
@@ -126,6 +135,7 @@ function mprpc_init_conn(conn)
     self.packetID = self.packetID + 1
     self:log("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
     
+    print("_han:", self._handle, meth )
     self:write( tosend, writecb )
   end
 
