@@ -175,7 +175,7 @@ function mprpc_init_conn(conn)
       nread,res = conn.rpc.mp.unpack(toread)            
 
       if type(res) ~= "table" or res[1] ~= 1 or type(res[2]) ~= "string" or type(res[3]) ~= "table" then
-        self:log("rpc format error. offset:", offset, "res:", res, "data:", strdump(toread) )
+        print("rpc format error. offset:", offset, "res:", res, "data:", strdump(toread) )
         return false
       else
         local meth = res[2]
