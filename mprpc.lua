@@ -135,7 +135,6 @@ function mprpc_init_conn(conn)
     self.packetID = self.packetID + 1
     self:log("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
     
-    print("_han:", self._handle, meth )
     self:write( tosend, writecb )
   end
 
