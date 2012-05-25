@@ -266,7 +266,7 @@ function mprpc_createServer(self,cb)
   return sv
 end
 
-function mprpc_connect(self,ip,port,cb)
+function mprpc_createConnection(self,port,ip,cb)
   assert(self.net and self.mp and cb)
   local conn
   conn = self.net.createConnection( port, ip, cb )
@@ -281,7 +281,7 @@ function mprpc_create_with_net_and_mp(net,mp)
   mod.net = net
   mod.mp = mp
   mod.createServer = mprpc_createServer
-  mod.connect = mprpc_connect
+  mod.createConnection = mprpc_createConnection
   return mod
 end
 
