@@ -1,6 +1,8 @@
 local string = require('string')
 local os = require("os")
+local io = require("io")
 local table = require("table")
+
 
 
 -- copied from penlight. 
@@ -39,9 +41,6 @@ function deepcompare(t1,t2,ignore_mt,eps)
 end
 
 -- need this for luvit SIGPIPE inf-loop bug workaround  
-function writecb()
-end
-
 
 function mprpc_init_conn(conn)
   conn.super_on = conn.on -- replace superclass "on" func..
@@ -52,10 +51,13 @@ function mprpc_init_conn(conn)
     
   conn.doLog = false
 
+  if not conn._pendingWriteRequests then -- in MOAI and other luasocket environments
+    conn._pendingWriteRequests = 0
+  end
+  
   conn.packetID = 0
-  
   conn.roundTripFuncID = 1
-  
+
   conn.recvbuf = ""
   function conn:log(...)
     if self.doLog then print(...) end
@@ -65,6 +67,8 @@ function mprpc_init_conn(conn)
 
   conn.packetID = 0
   conn.waitfuncs = {}
+
+  conn.tmpwbufs = {}
   
   conn.rpcfuncs = {}
   function conn:on(evname,fn)
@@ -76,6 +80,7 @@ function mprpc_init_conn(conn)
     else -- rpcs
       self.rpcfuncs[evname] = fn
       self:log("added rpc func:", evname )
+      print("added rpc func:", evname )      
     end
   end
   -- cb can be nil
@@ -102,12 +107,8 @@ function mprpc_init_conn(conn)
       self.last_call_id = nil
     end
 
---    print("call meth:", meth )
-    -- number, table, number, table, ..... number=length of the following packed table data.
-    --                  local ahost = MOAISim.getDeviceTime()
     local packed = self.rpc.mp.pack(t)
-    --                  local ahoet = MOAISim.getDeviceTime()
-    --                  print("packtime:", (ahoet-ahost) )
+
 
     if self.doSelfTest then
       local nread,resulttbl = self.rpc.mp.unpack(packed)
@@ -116,13 +117,32 @@ function mprpc_init_conn(conn)
     end
     
     local payloadlen = #packed
-    local lenpacked = self.rpc.mp.pack(payloadlen) 
+    local lenpacked = self.rpc.mp.pack(payloadlen)
+    if self.doSelfTest then
+      local nread,resultval = self.rpc.mp.unpack(lenpacked)
+      assert(resultval == payloadlen, "selftestpackedlen")
+    end
+    
     local tosend = lenpacked .. packed
 
     self.packetID = self.packetID + 1
-    self:log("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
+    self:log("meth:", meth, "sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
+
+    if self._pendingWriteRequests == 0 then
+      self.tmpwbufs = {}
+    end
     
-    self:write( tosend, writecb )
+    if self._pendingWriteRequests then
+      table.insert( self.tmpwbufs, tosend )
+    end
+    self._pendingWriteRequests = self._pendingWriteRequests + 1
+    
+    self:write( tosend, function(e)
+        if e and e.code == "EFAULT" then
+          error( "fatal:EFAULT")
+        end
+        self._pendingWriteRequests = self._pendingWriteRequests - 1
+      end)
   end
 
   conn:super_on("data", function (chunk)
@@ -175,6 +195,7 @@ function mprpc_init_conn(conn)
       self.packetID = self.packetID + 1
 
       offset = offset + nread
+
       local toread = string.sub(conn.recvbuf,offset,offset+payloadlen-1)  -- should never throws exception
       if #toread == 0 then
         self:log("format error?")
@@ -184,8 +205,6 @@ function mprpc_init_conn(conn)
         self:log( "not a msgpack map:" .. string.byte(toread,1,1) )
         return false
       end
-      
-
       
       nread,res = conn.rpc.mp.unpack(toread)
       if nread ~= payloadlen then
@@ -200,7 +219,6 @@ function mprpc_init_conn(conn)
         local meth = res[2]
         local arg = res[3]
         local call_id = res[4]
---        print("recv meth:", meth )
         
         local f = self.rpcfuncs[meth]
         if not f and not self.waitfuncs[call_id] then
@@ -228,15 +246,13 @@ function mprpc_init_conn(conn)
     end
     if offset > 1 then
       self.recvbuf = string.sub( self.recvbuf, offset)
-      print("aftershrink: recvbuflen:", #self.recvbuf, "offset:",offset)
     else
-      print("noshrink. recvbuflen:", #self.recvbuf )
     end
     return true
   end
 end
 
-function mprpc_createServer(self,ip,port,cb)
+function mprpc_createServer(self,cb)
   assert(self.net and self.mp )
   local sv = self.net.createServer( function(client)
       client.lastAliveAt = os.time()
@@ -244,23 +260,18 @@ function mprpc_createServer(self,ip,port,cb)
       client.rpc = self
       cb(client)
     end)
-  sv:listen( port, ip, function(err)
-      print("tcp listen at:", ip, port,err )
-    end)
   
   sv:on("error", function (err)  p("ERROR", err) end)
 
   return sv
 end
 
-function mprpc_connect(self,ip,port)
-  assert(self.net and self.mp )   
-  local conn = self.net.new()
+function mprpc_connect(self,ip,port,cb)
+  assert(self.net and self.mp and cb)
+  local conn
+  conn = self.net.createConnection( port, ip, cb )
   mprpc_init_conn(conn)
   conn.rpc = self
-  conn:connect(ip,port)
-  conn:read_start()
-
   return conn
 end
 
