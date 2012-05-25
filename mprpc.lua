@@ -95,6 +95,7 @@ function mprpc_init_conn(conn)
     else -- rpcs
       self.rpcfuncs[evname] = fn
       self:log("added rpc func:", evname )
+      print("added rpc func:", evname )      
     end
   end
   -- cb can be nil
@@ -237,7 +238,7 @@ function mprpc_init_conn(conn)
   end
 end
 
-function mprpc_createServer(self,ip,port,cb)
+function mprpc_createServer(self,cb)
   assert(self.net and self.mp )
   local sv = self.net.createServer( function(client)
       client.lastAliveAt = os.time()
@@ -245,23 +246,18 @@ function mprpc_createServer(self,ip,port,cb)
       client.rpc = self
       cb(client)
     end)
-  sv:listen( port, ip, function(err)
-      print("tcp listen at:", ip, port,err )
-    end)
   
   sv:on("error", function (err)  p("ERROR", err) end)
 
   return sv
 end
 
-function mprpc_connect(self,ip,port)
-  assert(self.net and self.mp )   
-  local conn = self.net.new()
+function mprpc_connect(self,ip,port,cb)
+  assert(self.net and self.mp and cb)
+  local conn
+  conn = self.net.createConnection( port, ip, cb )
   mprpc_init_conn(conn)
   conn.rpc = self
-  conn:connect(ip,port)
-  conn:read_start()
-
   return conn
 end
 
