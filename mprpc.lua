@@ -58,9 +58,6 @@ function deepcompare(t1,t2,ignore_mt,eps)
 end
 
 -- need this for luvit SIGPIPE inf-loop bug workaround  
-function writecb(x)
-end
-
 
 function mprpc_init_conn(conn)
   conn.super_on = conn.on -- replace superclass "on" func..
@@ -72,9 +69,8 @@ function mprpc_init_conn(conn)
   conn.doLog = false
 
   conn.packetID = 0
-  
   conn.roundTripFuncID = 1
-  
+
   conn.recvbuf = ""
   function conn:log(...)
     if self.doLog then print(...) end
@@ -84,6 +80,8 @@ function mprpc_init_conn(conn)
 
   conn.packetID = 0
   conn.waitfuncs = {}
+
+  conn.tmpwbufs = {}
   
   conn.rpcfuncs = {}
   function conn:on(evname,fn)
@@ -146,8 +144,22 @@ function mprpc_init_conn(conn)
 
     self.packetID = self.packetID + 1
     self:log("meth:", meth, "sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
+
+    if self._pendingWriteRequests == 0 then
+      self.tmpwbufs = {}
+    end
     
-    self:write( tosend, writecb )
+    if self._pendingWriteRequests then
+      table.insert( self.tmpwbufs, tosend )
+    end
+    self._pendingWriteRequests = self._pendingWriteRequests + 1
+    
+    self:write( tosend, function(e)
+        if e and e.code == "EFAULT" then
+          error( "fatal:EFAULT")
+        end
+        self._pendingWriteRequests = self._pendingWriteRequests - 1
+      end)
   end
 
   conn:super_on("data", function (chunk)
