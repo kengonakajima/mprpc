@@ -1,20 +1,7 @@
 local string = require('string')
 local os = require("os")
+local table = require("table")
 
-local strdump = function(s)
-  local out = ""
-  
-  for i=1,#s do
-    if i>80 and i < #s-4 then
-      if (i%1000)==0 then
-        out = out .. "."
-      end
-    else
-      out = out .. s:byte( i ) .. " "
-    end
-  end
-  return out
-end
 
 -- copied from penlight. 
 -- true if identical
@@ -146,43 +133,66 @@ function mprpc_init_conn(conn)
         conn:pollMessage()
       end                            
     end)
-  function conn:pollMessage(continueFunc )      
+  function conn:pollMessage(continueFunc )
     local offset=1
 
     while true do
       if continueFunc and continueFunc() == false then
         break
-      end         
+      end
       if #conn.recvbuf == 0 then
+        break
+      end
+      if #conn.recvbuf == offset-1 then
+        self:log( "fully consumed" )
         break
       end
 
       local pcallret, nread,res
+      local envelopebytes = string.sub(conn.recvbuf,offset,offset+8)  -- 8 bytes are enough for payloadlen
+
       pcallret, nread,res = pcall( function()
-          return conn.rpc.mp.unpack(string.sub(conn.recvbuf,offset,offset+8) ) -- 8 bytes are enough for payloadlen
+          return conn.rpc.mp.unpack(envelopebytes) -- 8 bytes are enough for payloadlen
         end )
       if not pcallret or not nread then
-        --            print("need number first!: ",pcallret, nread,res )
-        break
+        break  -- no data, so next loop.
       end
 
       local payloadlen = res
       local bufleft = ( #conn.recvbuf - offset + 1 ) - nread
 
-      self.packetID = self.packetID + 1
-      self:log("mprpc: offset:", offset, "payload len:", payloadlen, "envelopelen:", nread, "#recvbuf:", #conn.recvbuf, "bufleft:",bufleft, "packetID:", self.packetID )
-
-      
+      self:log("mprpc env!: offset:", offset, "payloadlen:", payloadlen, "envelopelen:", nread, "#recvbuf:", #conn.recvbuf, "bufleft:",bufleft, "packetID:", self.packetID )
+      if payloadlen <= 0 then
+        self:log( "payloadlen:", payloadlen, "<=0" )
+        return true
+      end      
       if bufleft < payloadlen then
-        self:log("wantread!")
+        self:log("bufleft<payloadlen.",bufleft,"<",payloadlen)
         break
       end
 
-      offset = offset + nread
-      local toread = string.sub(conn.recvbuf,offset,offset+payloadlen)  -- should never throws exception
-      
-      nread,res = conn.rpc.mp.unpack(toread)            
 
+      self.packetID = self.packetID + 1
+
+      offset = offset + nread
+      local toread = string.sub(conn.recvbuf,offset,offset+payloadlen-1)  -- should never throws exception
+      if #toread == 0 then
+        self:log("format error?")
+        return false
+      end      
+      if string.byte( toread,1,1) ~= 0x93 then
+        self:log( "not a msgpack map:" .. string.byte(toread,1,1) )
+        return false
+      end
+      
+
+      
+      nread,res = conn.rpc.mp.unpack(toread)
+      if nread ~= payloadlen then
+        self:log( "nread ~= payloadlen.. nread:" .. nread .. " payloadlen:" .. payloadlen )
+        return false
+      end
+      
       if type(res) ~= "table" or res[1] ~= 1 or type(res[2]) ~= "string" or type(res[3]) ~= "table" then
         print("rpc format error. offset:", offset, "res:", res, "data:", strdump(toread) )
         return false
@@ -218,6 +228,9 @@ function mprpc_init_conn(conn)
     end
     if offset > 1 then
       self.recvbuf = string.sub( self.recvbuf, offset)
+      print("aftershrink: recvbuflen:", #self.recvbuf, "offset:",offset)
+    else
+      print("noshrink. recvbuflen:", #self.recvbuf )
     end
     return true
   end
