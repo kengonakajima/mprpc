@@ -1,5 +1,10 @@
 local string = require('string')
 local os = require("os")
+local io = require("io")
+local table = require("table")
+
+
+
 
 local strdump = function(s)
   local out = ""
@@ -15,6 +20,7 @@ local strdump = function(s)
   end
   return out
 end
+
 
 -- copied from penlight. 
 -- true if identical
@@ -52,7 +58,7 @@ function deepcompare(t1,t2,ignore_mt,eps)
 end
 
 -- need this for luvit SIGPIPE inf-loop bug workaround  
-function writecb()
+function writecb(x)
 end
 
 
@@ -129,11 +135,16 @@ function mprpc_init_conn(conn)
     end
     
     local payloadlen = #packed
-    local lenpacked = self.rpc.mp.pack(payloadlen) 
+    local lenpacked = self.rpc.mp.pack(payloadlen)
+    if self.doSelfTest then
+      local nread,resultval = self.rpc.mp.unpack(lenpacked)
+      assert(resultval == payloadlen, "selftestpackedlen")
+    end
+    
     local tosend = lenpacked .. packed
 
     self.packetID = self.packetID + 1
-    self:log("sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
+    self:log("meth:", meth, "sending actual data bytes:", #tosend, "payloadlen:", payloadlen, "packetID:", self.packetID )
     
     self:write( tosend, writecb )
   end
@@ -180,6 +191,9 @@ function mprpc_init_conn(conn)
 
       offset = offset + nread
       local toread = string.sub(conn.recvbuf,offset,offset+payloadlen)  -- should never throws exception
+      if  string.byte( toread,1,1) ~= 0x93 then
+        self:log( "not a msgpack map" )
+      end
       
       nread,res = conn.rpc.mp.unpack(toread)            
 
