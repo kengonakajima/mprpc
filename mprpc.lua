@@ -44,10 +44,6 @@ end
 
 function mprpc_init_conn(conn)
   conn.super_on = conn.on -- replace superclass "on" func..
-
-  if conn._handle then
-    conn.hasHandle = true
-  end
     
   conn.doLog = false
 
@@ -85,10 +81,6 @@ function mprpc_init_conn(conn)
   end
   -- cb can be nil
   function conn:call(meth,arg,cb)
-    if self.hasHandle and not self._handle then
-      self:log("no handle")
-      return
-    end
       
     if type(arg) ~= "table" then 
       return self:emit(meth,arg) -- fallback to super class' emit function
