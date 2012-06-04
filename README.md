@@ -1,6 +1,6 @@
-lua-mprpc
+mprpc for Lua
 ====
-lua-mprpc is a small RPC stub for both [lua-msgpack](https://github.com/kengonakajima/lua-msgpack) and [lua-msgpack-native](https://github.com/kengonakajima/lua-msgpack-native) .
+mprpc is a small RPC stub for both [lua-msgpack](https://github.com/kengonakajima/lua-msgpack) and [lua-msgpack-native](https://github.com/kengonakajima/lua-msgpack-native) .
 
 It provides some simple RPC syntax similar to Socket.io .
 
