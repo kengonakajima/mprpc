@@ -3,7 +3,10 @@ local os = require("os")
 local io = require("io")
 local table = require("table")
 
-
+local res, uv = pcall( function() return require("uv_native") end)
+if res then 
+  local timer = require("timer")
+end
 
 -- copied from penlight. 
 -- true if identical
@@ -71,7 +74,12 @@ function mprpc_init_conn(conn)
     if evname == "data" then
       error("MP need data event!")
     elseif evname == "complete" or evname == "end" or evname == "error" then
-      self:super_on(evname,fn)
+      self:super_on(evname,function()
+          fn()
+          if self.parentServer then
+            self.parentServer:clean(self)
+          end
+        end)
       self:log("added default callback:", evname)
     else -- rpcs
       self.rpcfuncs[evname] = fn
@@ -246,15 +254,74 @@ end
 
 function mprpc_createServer(self,cb)
   assert(self.net and self.mp )
-  local sv = self.net.createServer( function(client)
+
+  local sv
+  sv = self.net.createServer( function(client)
       client.lastAliveAt = os.time()
       mprpc_init_conn(client)
+      client.parentServer = sv
       client.rpc = self
+      local addr = client:address().address
+      sv:regAddr(addr)
+      print("new connection from ", addr)      
       cb(client)
+      table.insert( sv.clients, client )    
     end)
+  sv.clients = {}
+  sv.cliAddrs = {}
+
   
   sv:on("error", function (err)  p("ERROR", err) end)
 
+  function sv:regAddr(a)
+    if not self.cliAddrs[a] then
+      self.cliAddrs[a] = 1
+    else
+      self.cliAddrs[a] = self.cliAddrs[a] + 1
+    end
+  end
+
+  function sv:clean(cli)
+    for i,v in ipairs(self.clients) do
+      if v == cli then
+        table.remove( self.clients, i )
+        break
+      end
+    end   
+  end
+  
+  function sv:broadcast(meth,arg)
+    for i,cli in ipairs(self.clients) do
+      cli:emit(meth,arg)
+    end  
+  end
+
+
+  sv.clientTimeout = 10
+  
+  timer.setInterval(1000, function()
+      -- connection timeout
+      local nt = os.time() 
+      local toclean = {}
+      for i,v in ipairs(sv.clients) do
+        v:poll()
+        print(v, v.lastAliveAt)
+        if v.lastAliveAt and v.lastAliveAt < (nt - sv.clientTimeout ) then
+          -- this causes luvit crash (0.3):    v:shutdown()
+          table.insert( toclean,v )
+          if v.close then 
+            v:close()
+          elseif uv then 
+            uv.close( v._handle )
+          end
+          v:log("client timeout! closing.", v )
+        end                               
+      end
+      for i,v in ipairs(toclean)do
+        sv:clean(v)
+      end
+    end)
+  
   return sv
 end
 
