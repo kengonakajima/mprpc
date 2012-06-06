@@ -335,7 +335,10 @@ function mprpc_createConnection(self,port,ip,cb)
 end
 
 function mprpc_create_with_net_and_mp(net,mp)
-  assert(mp and mp.pack and mp.unpack)
+  if not mp or not mp.pack or not mp.unpack then
+    error( "msgpack is required")
+  end
+  
   local mod = {}
   mod.net = net
   mod.mp = mp
