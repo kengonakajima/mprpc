@@ -305,7 +305,6 @@ function mprpc_createServer(self,cb)
       local toclean = {}
       for i,v in ipairs(sv.clients) do
         v:poll()
-        print(v, v.lastAliveAt)
         if v.lastAliveAt and v.lastAliveAt < (nt - sv.clientTimeout ) then
           -- this causes luvit crash (0.3):    v:shutdown()
           table.insert( toclean,v )
