@@ -292,9 +292,15 @@ function mprpc_createServer(self,cb)
   
   function sv:broadcast(meth,arg)
     for i,cli in ipairs(self.clients) do
-      cli:emit(meth,arg)
+      cli:call(meth,arg)
     end  
   end
+  function sv:scan(callback)
+    for _,cli in ipairs(self.clients) do
+      callback(cli)
+    end    
+  end
+  
 
 
   sv.clientTimeout = 10
