@@ -112,8 +112,11 @@ function mprpc_init_conn(conn)
 
     if self.doSelfTest then
       local nread,resulttbl = self.rpc.mp.unpack(packed)
-      local isok = deepcompare(resulttbl,t)
-      assert(isok, "deepcompare")
+      local correct = deepcompare(resulttbl,t)
+      if not correct then
+        self:log( "deepcompare failed. NaN is included in the argument? sending any way." )
+        if pp then pp("argument:", t) end
+      end
     end
     
     local payloadlen = #packed
