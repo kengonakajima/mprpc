@@ -57,6 +57,10 @@ function mprpc_init_conn(conn)
   conn.packetID = 0
   conn.roundTripFuncID = 1
 
+  conn.callCount = 0
+  conn.recvBytes = 0
+  conn.sendBytes = 0
+
   conn.recvbuf = ""
   function conn:log(...)
     if self.doLog then print(...) end
@@ -139,7 +143,7 @@ function mprpc_init_conn(conn)
       table.insert( self.tmpwbufs, tosend )
     end
     self._pendingWriteRequests = self._pendingWriteRequests + 1
-    
+    self.sendBytes = self.sendBytes + #tosend    
     self:write( tosend, function(e)
         if e and e.code == "EFAULT" then
           error( "fatal:EFAULT")
@@ -214,6 +218,7 @@ function mprpc_init_conn(conn)
         self:log( "nread ~= payloadlen.. nread:" .. nread .. " payloadlen:" .. payloadlen )
         return false
       end
+      self.recvBytes = self.recvBytes + nread
       
       if type(res) ~= "table" or res[1] ~= 1 or type(res[2]) ~= "string" or type(res[3]) ~= "table" then
         print("rpc format error. offset:", offset, "res:", res, "data:", strdump(toread) )
@@ -244,6 +249,7 @@ function mprpc_init_conn(conn)
             f( arg )
           end                                     
         end
+        self.callCount = self.callCount + 1
       end
       offset = offset + nread
     end
