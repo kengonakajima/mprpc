@@ -243,10 +243,14 @@ function mprpc_init_conn(conn)
               self.last_call_id = call_id
               self.last_call_method = meth
               self:log("last_call_id set:", self.last_call_id)
-              f(arg)
+              f(arg)              
             end
           else
-            f( arg )
+            if self.exceptionHandler then
+              xpcall( function() f(arg) end, self.exceptionHandler )
+            else
+              f( arg )
+            end
           end                                     
         end
         self.callCount = self.callCount + 1
