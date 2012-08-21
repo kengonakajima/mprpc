@@ -152,6 +152,12 @@ function mprpc_init_conn(conn)
       end)
   end
 
+  function conn:close()
+    if uv then
+      uv.close( self._handle)
+    end    
+  end
+  
   conn:super_on("data", function (chunk)
       conn.lastAliveAt = os.time()
       conn.recvbuf = conn.recvbuf .. chunk
