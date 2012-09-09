@@ -195,6 +195,10 @@ function mprpc_init_conn(conn)
       local bufleft = ( #conn.recvbuf - offset + 1 ) - nread
 
 --      self:log("mprpc env!: offset:", offset, "payloadlen:", payloadlen, "envelopelen:", nread, "#recvbuf:", #conn.recvbuf, "bufleft:",bufleft, "packetID:", self.packetID )
+      if payloadlen == nil then
+        self:log("payloadlen is nil, need more data")
+        break
+      end      
       if payloadlen <= 0 then
         self:log( "payloadlen:", payloadlen, "<=0" )
         return true
